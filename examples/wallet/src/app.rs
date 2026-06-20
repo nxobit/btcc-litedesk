@@ -1,0 +1,46 @@
+use crate::{theme, ui::dashboard::Dashboard};
+use gpui::*;
+use gpui_component::{Root, TitleBar};
+use gpui_component_assets::Assets;
+
+fn main_window_options(cx: &mut App) -> WindowOptions {
+    let initial_size = if cfg!(target_os = "macos") {
+        size(px(1200.0), px(800.0))
+    } else {
+        size(px(1290.0), px(840.0))
+    };
+
+    WindowOptions {
+        window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
+            None,
+            initial_size,
+            cx,
+        ))),
+        titlebar: Some(TitleBar::title_bar_options()),
+        ..Default::default()
+    }
+}
+
+fn open_main_window(cx: &mut App) {
+    let window_options = main_window_options(cx);
+    cx.open_window(window_options, |window, cx| {
+        let view = cx.new(|cx| Dashboard::new(window, cx));
+        cx.new(|cx| Root::new(view, window, cx))
+    })
+    .expect("failed to open desktop window");
+}
+
+pub fn run() {
+    let app = Application::new().with_assets(Assets);
+
+    app.on_reopen(|cx| {
+        cx.activate(true);
+        open_main_window(cx);
+    });
+
+    app.run(move |cx| {
+        gpui_component::init(cx);
+        theme::init(cx);
+        open_main_window(cx);
+    });
+}

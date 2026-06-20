@@ -1,0 +1,12 @@
+/target
+/target2
+db/btcc_litedesk.sqlite
+nul
+*.swp
+*.swo
+*~
+.DS_Store
+wallet-panic.log
+packaging/windows/BTCC-Litedesk.iss
+scripts/build_windows_installer.ps1
+dist/
