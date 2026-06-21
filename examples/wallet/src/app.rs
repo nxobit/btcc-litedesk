@@ -10,12 +10,29 @@ fn main_window_options(cx: &mut App) -> WindowOptions {
         size(px(1290.0), px(840.0))
     };
 
+    let (window_bounds, display_id) = cx
+        .primary_display()
+        .map(|display| {
+            let screen_bounds = display.bounds();
+            let bounds = Bounds {
+                origin: point(
+                    screen_bounds.center().x - initial_size.center().x,
+                    screen_bounds.center().y - initial_size.center().y,
+                ),
+                size: initial_size,
+            };
+            (WindowBounds::Windowed(bounds), Some(display.id()))
+        })
+        .unwrap_or_else(|| {
+            (
+                WindowBounds::Windowed(Bounds::centered(None, initial_size, cx)),
+                None,
+            )
+        });
+
     WindowOptions {
-        window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
-            None,
-            initial_size,
-            cx,
-        ))),
+        window_bounds: Some(window_bounds),
+        display_id,
         titlebar: Some(TitleBar::title_bar_options()),
         ..Default::default()
     }
