@@ -5,7 +5,7 @@ use gpui_component_assets::Assets;
 
 fn main_window_options(cx: &mut App) -> WindowOptions {
     let initial_size = if cfg!(target_os = "macos") {
-        size(px(1200.0), px(800.0))
+        size(px(1440.0), px(900.0))   
     } else {
         size(px(1290.0), px(840.0))
     };
@@ -40,11 +40,18 @@ fn main_window_options(cx: &mut App) -> WindowOptions {
 
 fn open_main_window(cx: &mut App) {
     let window_options = main_window_options(cx);
-    cx.open_window(window_options, |window, cx| {
+    let handle = cx
+        .open_window(window_options, |window, cx| {
         let view = cx.new(|cx| Dashboard::new(window, cx));
         cx.new(|cx| Root::new(view, window, cx))
     })
     .expect("failed to open desktop window");
+
+    cx.defer(move |cx| {
+        let _ = handle.update(cx, |_root, window, _cx| {
+            window.refresh();
+        });
+    });
 }
 
 pub fn run() {
@@ -58,6 +65,7 @@ pub fn run() {
     app.run(move |cx| {
         gpui_component::init(cx);
         theme::init(cx);
+        cx.activate(true);
         open_main_window(cx);
     });
 }
