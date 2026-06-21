@@ -115,7 +115,7 @@ impl VanityGeneratorPage {
 
         Self {
             mode: VanityMode::Prefix,
-            engine_mode: VanityEngineMode::Gpu,
+            engine_mode: VanityEngineMode::Cpu,
             gpu_backend: VanityGpuBackend::Auto,
             prefix_input,
             suffix_input,
@@ -146,6 +146,7 @@ impl VanityGeneratorPage {
         cx: &mut Context<Self>,
     ) {
         if matches!(event, InputEvent::Change) {
+            self.apply_recommended_engine_mode(cx);
             self.status = None;
             self.error = None;
             cx.notify();
@@ -154,6 +155,7 @@ impl VanityGeneratorPage {
 
     fn set_mode(&mut self, mode: VanityMode, cx: &mut Context<Self>) {
         self.mode = mode;
+        self.apply_recommended_engine_mode(cx);
         self.status = None;
         self.error = None;
         cx.notify();
@@ -549,9 +551,34 @@ impl VanityGeneratorPage {
         self.note_input
             .update(cx, |input, cx| input.set_value("", window, cx));
         self.save_to_wallet_list = true;
-        self.engine_mode = VanityEngineMode::Gpu;
+        self.engine_mode = VanityEngineMode::Cpu;
         self.gpu_backend = VanityGpuBackend::Auto;
+        self.apply_recommended_engine_mode(cx);
         cx.notify();
+    }
+
+    fn apply_recommended_engine_mode(&mut self, cx: &mut Context<Self>) {
+        let rule_len = self.current_rule_length(cx);
+        self.engine_mode = if rule_len >= 4 {
+            VanityEngineMode::Gpu
+        } else {
+            VanityEngineMode::Cpu
+        };
+    }
+
+    fn current_rule_length(&self, cx: &mut Context<Self>) -> usize {
+        let prefix_len = normalize_match_fragment(&input_value(&self.prefix_input, cx), true)
+            .chars()
+            .count();
+        let suffix_len = normalize_match_fragment(&input_value(&self.suffix_input, cx), false)
+            .chars()
+            .count();
+
+        match self.mode {
+            VanityMode::Prefix => prefix_len,
+            VanityMode::Suffix => suffix_len,
+            VanityMode::PrefixAndSuffix => prefix_len + suffix_len,
+        }
     }
 
     fn render_header(&self, cx: &mut Context<Self>) -> AnyElement {
