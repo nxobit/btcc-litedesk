@@ -20,6 +20,7 @@ use gpui_component::{
 };
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::panic::{self, AssertUnwindSafe};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -163,13 +164,22 @@ impl VanityGeneratorPage {
 
     fn set_engine_mode(&mut self, mode: VanityEngineMode, cx: &mut Context<Self>) {
         self.engine_mode = mode;
+        if self.engine_mode == VanityEngineMode::Gpu
+            && !supports_gpu_backend_on_current_platform(self.gpu_backend)
+        {
+            self.gpu_backend = default_gpu_backend_for_platform();
+        }
         self.status = None;
         self.error = None;
         cx.notify();
     }
 
     fn set_gpu_backend(&mut self, backend: VanityGpuBackend, cx: &mut Context<Self>) {
-        self.gpu_backend = backend;
+        self.gpu_backend = if supports_gpu_backend_on_current_platform(backend) {
+            backend
+        } else {
+            default_gpu_backend_for_platform()
+        };
         self.status = None;
         self.error = None;
         cx.notify();
@@ -322,56 +332,72 @@ impl VanityGeneratorPage {
                         let stop_requested = stop_requested.clone();
                         let progress_attempts = task_progress_attempts.clone();
                         async move {
-                            let compute_mode = match engine_mode {
-                                VanityEngineMode::Cpu => WalletVanityComputeMode::Cpu,
-                                VanityEngineMode::Gpu => {
-                                    WalletVanityComputeMode::Gpu(VanityGpuConfig {
-                                        backend: gpu_backend,
-                                        batch_size: 512 * 1024,
+                            let work = move || -> anyhow::Result<Option<VanityGenerationResult>> {
+                                let compute_mode = match engine_mode {
+                                    VanityEngineMode::Cpu => WalletVanityComputeMode::Cpu,
+                                    VanityEngineMode::Gpu => {
+                                        WalletVanityComputeMode::Gpu(VanityGpuConfig {
+                                            backend: gpu_backend,
+                                            batch_size: 512 * 1024,
+                                        })
+                                    }
+                                };
+
+                                let progress_cb = if engine_mode == VanityEngineMode::Gpu {
+                                    Some(Arc::new(move |attempts| {
+                                        progress_attempts.store(attempts, Ordering::Relaxed);
                                     })
+                                        as Arc<dyn Fn(u64) + Send + Sync>)
+                                } else {
+                                    None
+                                };
+
+                                let Some(result) = generate_vanity_btcc_wallet_with_stats_cancellable_mode_progress(
+                                    pattern,
+                                    thread_count,
+                                    stop_requested,
+                                    compute_mode,
+                                    progress_cb,
+                                )?
+                                else {
+                                    return Ok(None);
+                                };
+
+                                if save_to_wallet_list {
+                                    let wallet_name = build_wallet_name(mode, &prefix, &suffix, index);
+                                    create_encrypted_btcc_wallet_blocking(
+                                        wallet_name,
+                                        result.wallet.address.clone(),
+                                        result.wallet.derivation_path.clone(),
+                                        if engine_mode == VanityEngineMode::Gpu {
+                                            "wif".to_string()
+                                        } else {
+                                            "generated".to_string()
+                                        },
+                                        result.wallet.public_key.to_string(),
+                                        note,
+                                        result.wallet.mnemonic.clone(),
+                                        result.wallet.private_key_wif.clone(),
+                                        password.expect("password must exist when saving"),
+                                    )?;
                                 }
+
+                                Ok(Some(result))
                             };
 
-                            let progress_cb = if engine_mode == VanityEngineMode::Gpu {
-                                Some(Arc::new(move |attempts| {
-                                    progress_attempts.store(attempts, Ordering::Relaxed);
-                                })
-                                    as Arc<dyn Fn(u64) + Send + Sync>)
-                            } else {
-                                None
-                            };
-
-                            let Some(result) = generate_vanity_btcc_wallet_with_stats_cancellable_mode_progress(
-                                pattern,
-                                thread_count,
-                                stop_requested,
-                                compute_mode,
-                                progress_cb,
-                            )?
-                            else {
-                                return Ok::<_, anyhow::Error>(None);
-                            };
-
-                            if save_to_wallet_list {
-                                let wallet_name = build_wallet_name(mode, &prefix, &suffix, index);
-                                create_encrypted_btcc_wallet_blocking(
-                                    wallet_name,
-                                    result.wallet.address.clone(),
-                                    result.wallet.derivation_path.clone(),
-                                    if engine_mode == VanityEngineMode::Gpu {
-                                        "wif".to_string()
+                            panic::catch_unwind(AssertUnwindSafe(work)).map_err(|payload| {
+                                let panic_message =
+                                    if let Some(message) = payload.downcast_ref::<&str>() {
+                                        (*message).to_string()
+                                    } else if let Some(message) = payload.downcast_ref::<String>() {
+                                        message.clone()
                                     } else {
-                                        "generated".to_string()
-                                    },
-                                    result.wallet.public_key.to_string(),
-                                    note,
-                                    result.wallet.mnemonic.clone(),
-                                    result.wallet.private_key_wif.clone(),
-                                    password.expect("password must exist when saving"),
-                                )?;
-                            }
-
-                            Ok::<_, anyhow::Error>(Some(result))
+                                        "unknown panic payload".to_string()
+                                    };
+                                anyhow::anyhow!(
+                                    "GPU 靓号生成发生内部 panic：{panic_message}。请查看 panic 日志，或先切回 CPU。"
+                                )
+                            })?
                         }
                     })
                     .await;
@@ -1054,17 +1080,17 @@ fn render_engine_picker(
                     h_flex()
                         .gap_2()
                         .flex_wrap()
-                        .child(gpu_backend_button(gpu_backend, VanityGpuBackend::Auto, cx))
-                        .child(gpu_backend_button(gpu_backend, VanityGpuBackend::Vulkan, cx))
-                        .child(gpu_backend_button(gpu_backend, VanityGpuBackend::Metal, cx))
-                        .child(gpu_backend_button(gpu_backend, VanityGpuBackend::Dx12, cx))
-                        .child(gpu_backend_button(gpu_backend, VanityGpuBackend::Gl, cx)),
+                        .children(
+                            available_gpu_backends()
+                                .into_iter()
+                                .map(|backend| gpu_backend_button(gpu_backend, backend, cx)),
+                        ),
                 )
                 .child(
                     div()
                         .text_size(px(10.))
                         .text_color(palette::muted_soft(&app_theme))
-                        .child("默认建议 Auto；驱动异常时再手动切后端。"),
+                        .child(gpu_backend_hint_text()),
                 )
         })
         .into_any_element()
@@ -1128,6 +1154,59 @@ fn gpu_backend_button(
         this.set_gpu_backend(backend, cx);
     }))
     .into_any_element()
+}
+
+fn default_gpu_backend_for_platform() -> VanityGpuBackend {
+    #[cfg(target_os = "macos")]
+    {
+        VanityGpuBackend::Auto
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        VanityGpuBackend::Auto
+    }
+}
+
+fn supports_gpu_backend_on_current_platform(backend: VanityGpuBackend) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        matches!(backend, VanityGpuBackend::Auto | VanityGpuBackend::Metal)
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        !matches!(backend, VanityGpuBackend::Dx12)
+    }
+}
+
+fn available_gpu_backends() -> Vec<VanityGpuBackend> {
+    #[cfg(target_os = "macos")]
+    {
+        vec![VanityGpuBackend::Auto, VanityGpuBackend::Metal]
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        vec![
+            VanityGpuBackend::Auto,
+            VanityGpuBackend::Vulkan,
+            VanityGpuBackend::Metal,
+            VanityGpuBackend::Gl,
+        ]
+    }
+}
+
+fn gpu_backend_hint_text() -> &'static str {
+    #[cfg(target_os = "macos")]
+    {
+        "macOS 当前只开放 Auto 和 Metal，避免 GPU 后端初始化直接闪退。"
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        "默认建议 Auto；驱动异常时再手动切后端。"
+    }
 }
 
 fn render_switch(

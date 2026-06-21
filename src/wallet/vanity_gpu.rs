@@ -70,6 +70,13 @@ pub fn run_vgen_for_btcc_pattern(
         ));
     }
 
+    #[cfg(target_os = "macos")]
+    if !matches!(backend, VanityGpuBackend::Auto | VanityGpuBackend::Metal) {
+        return Err(anyhow!(
+            "macOS GPU 模式当前仅支持 Auto 或 Metal 后端。"
+        ));
+    }
+
     if stop_requested.load(Ordering::Relaxed) {
         return Ok(None);
     }
