@@ -29,7 +29,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
 sha2 = "0.10"
 tokio = { version = "1.42", features = ["rt", "sync"] }
-vgen = { git = "https://github.com/nxobit/vgen.git", rev = "f100984d1667f2359c2d9e8de896c90e89f9bca0" }
+vgen = { git = "https://github.com/nxobit/vgen.git", rev = "555964feb9636238da39509f3eadcbb4026bc0b1" }
 naga = { git = "https://github.com/nxobit/naga.git", rev = "461a550e063d1e063cc361f388e0e3e32fe39451", features = ["termcolor"] }
 
 [patch.crates-io]
