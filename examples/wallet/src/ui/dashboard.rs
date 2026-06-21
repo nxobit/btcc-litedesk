@@ -2,6 +2,7 @@ use crate::ui::{
     btcc::{
         batch_send::BatchSendPage,
         donate_window::DonateWindow,
+        stamp_mint::StampMintPage,
         vanity_generator::VanityGeneratorPage,
         wallet_generator::WalletGeneratorPage,
         wallet_list::{BtccWalletListEvent, BtccWalletListPage},
@@ -10,7 +11,7 @@ use crate::ui::{
     palette,
     title_bar::{
         DesktopTitleBar, DesktopTitleBarEvent, OpenBatchSend, OpenBtccWalletCreate,
-        OpenBtccWalletImport, OpenBtccWalletList, OpenDonate, OpenVanityGenerator,
+        OpenBtccWalletImport, OpenBtccWalletList, OpenDonate, OpenStampMint, OpenVanityGenerator,
         OpenWalletGenerator, OpenWalletManager,
     },
 };
@@ -24,6 +25,7 @@ pub struct Dashboard {
     wallet_generator_page: Option<Entity<WalletGeneratorPage>>,
     wallet_manager_page: Option<Entity<WalletManagerPage>>,
     batch_send_page: Option<Entity<BatchSendPage>>,
+    stamp_mint_page: Option<Entity<StampMintPage>>,
     donate_page: Option<Entity<DonateWindow>>,
     active_page: ActivePage,
     _subscriptions: Vec<Subscription>,
@@ -36,6 +38,7 @@ enum ActivePage {
     WalletGenerator,
     WalletManager,
     BatchSend,
+    StampMint,
     Donate,
 }
 
@@ -66,6 +69,7 @@ impl Dashboard {
             wallet_generator_page: None,
             wallet_manager_page: Some(wallet_manager_page),
             batch_send_page: None,
+            stamp_mint_page: None,
             donate_page: None,
             active_page: ActivePage::BtccWalletList,
             _subscriptions,
@@ -181,6 +185,15 @@ impl Dashboard {
         self.open_batch_send_page(window, cx);
     }
 
+    fn on_open_stamp_mint(
+        &mut self,
+        _: &OpenStampMint,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_stamp_mint_page(window, cx);
+    }
+
     fn on_btcc_wallet_list_event(
         &mut self,
         _: &Entity<BtccWalletListPage>,
@@ -242,6 +255,14 @@ impl Dashboard {
             self.batch_send_page = Some(cx.new(|cx| BatchSendPage::new(window, cx)));
         }
         self.active_page = ActivePage::BatchSend;
+        cx.notify();
+    }
+
+    fn open_stamp_mint_page(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.stamp_mint_page.is_none() {
+            self.stamp_mint_page = Some(cx.new(|cx| StampMintPage::new(window, cx)));
+        }
+        self.active_page = ActivePage::StampMint;
         cx.notify();
     }
 
@@ -311,6 +332,18 @@ impl Dashboard {
                         .into_any_element()
                 })
                 .unwrap_or_else(|| div().into_any_element()),
+            ActivePage::StampMint => self
+                .stamp_mint_page
+                .as_ref()
+                .map(|page| {
+                    div()
+                        .flex_1()
+                        .size_full()
+                        .p_6()
+                        .child(page.clone())
+                        .into_any_element()
+                })
+                .unwrap_or_else(|| div().into_any_element()),
         }
     }
 }
@@ -333,6 +366,7 @@ impl Render for Dashboard {
             .on_action(cx.listener(Self::on_open_wallet_manager))
             .on_action(cx.listener(Self::on_open_donate))
             .on_action(cx.listener(Self::on_open_batch_send))
+            .on_action(cx.listener(Self::on_open_stamp_mint))
             .child(self.title_bar.clone())
             .child(
                 h_flex()

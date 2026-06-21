@@ -1,4 +1,4 @@
-use crate::theme;
+﻿use crate::theme;
 use crate::ui::btcc::wallet_list::get_global_vault_password;
 use crate::ui::palette;
 use gpui::{actions, prelude::FluentBuilder, *};
@@ -18,6 +18,7 @@ actions!(
         OpenWalletGenerator,
         OpenWalletManager,
         OpenBatchSend,
+        OpenStampMint,
         OpenDonate
     ]
 );
@@ -234,3 +235,4 @@ impl Render for DesktopTitleBar {
             )
     }
 }
+

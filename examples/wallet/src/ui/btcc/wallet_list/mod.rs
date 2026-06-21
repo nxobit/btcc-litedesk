@@ -1,4 +1,4 @@
-use crate::theme::{
+﻿use crate::theme::{
     load_show_total_balance, load_show_wallet_addresses, load_show_wallet_balances,
     save_show_total_balance, save_show_wallet_addresses, save_show_wallet_balances,
 };
@@ -6,7 +6,7 @@ use crate::ui::palette;
 use bip39::{Language, Mnemonic};
 use btcc_litedesk::{
     db::btcc_wallet::{
-        BtccWalletRecord, BtccWalletSecrets, DeleteBtccWalletResult,
+        BtccWalletRecord, BtccWalletSecrets,
         btcc_wallet_password_exists_blocking, create_btcc_wallet_password_blocking,
         create_encrypted_btcc_wallet_blocking, decrypt_btcc_wallet_secrets_blocking,
         delete_btcc_wallet_blocking, list_btcc_wallets_blocking,
@@ -161,7 +161,7 @@ impl BtccWalletListPage {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let search_input = cx.new(|cx| {
             InputState::new(window, cx)
-                .placeholder("查询钱包名称或完整钱包地址")
+                .placeholder("搜索钱包名称或完整钱包地址")
                 .default_value("")
         });
         let name_input = cx.new(|cx| {
@@ -171,7 +171,7 @@ impl BtccWalletListPage {
         });
         let address_input = cx.new(|cx| {
             InputState::new(window, cx)
-                .placeholder("BTCC 地址，例如 cc1q 开头")
+                .placeholder("BTCC 地址，例如 cc1q... 开头")
                 .default_value("")
         });
         let note_input = cx.new(|cx| {
@@ -183,7 +183,7 @@ impl BtccWalletListPage {
             InputState::new(window, cx)
                 .multi_line(true)
                 .rows(4)
-                .placeholder("粘贴 12 个助记词，用空格分隔")
+                .placeholder("粘贴 12/24 个英文助记词，用空格分隔")
                 .default_value("")
         });
         let import_wif_input = cx.new(|cx| {
@@ -342,7 +342,7 @@ impl BtccWalletListPage {
 
         self.status = None;
         if !confirm.is_empty() && password != confirm {
-            self.error = Some("两次输入的密码不一致".to_string());
+            self.error = Some("Passwords do not match".to_string());
         } else {
             self.error = None;
         }
@@ -476,7 +476,7 @@ impl BtccWalletListPage {
                         this.status = None;
                     }
                     Err(err) => {
-                        this.error = Some(format!("刷新余额失败: {err}"));
+                        this.error = Some(format!("Failed to refresh balances: {err}"));
                         this.status = None;
                     }
                 }
@@ -509,7 +509,7 @@ impl BtccWalletListPage {
     fn unlock_vault_password(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let password = self.unlock_password_input.read(cx).text().to_string();
         if password.is_empty() {
-            self.error = Some("请输入钱包密码".to_string());
+            self.error = Some("Please enter wallet password".to_string());
             self.status = None;
             cx.notify();
             return;
@@ -546,7 +546,7 @@ impl BtccWalletListPage {
             return;
         }
         if password != confirm {
-            self.error = Some("两次输入的密码不一致".to_string());
+            self.error = Some("Passwords do not match".to_string());
             self.status = None;
             cx.notify();
             return;
@@ -556,7 +556,7 @@ impl BtccWalletListPage {
             Ok(()) => {
                 self.vault_initialized = true;
                 self.vault_unlocked = true;
-                self.status = Some("钱包密码已设置".to_string());
+                self.status = Some("Wallet password has been set".to_string());
                 self.error = None;
                 *GLOBAL_VAULT_PASSWORD.lock().unwrap() = Some(password);
                 self.vault_password_input
@@ -609,11 +609,14 @@ impl BtccWalletListPage {
         self.selected_id = None;
         self.editor_open = true;
         self.editor_mode = EditorMode::ImportMnemonic;
+        self.import_mode = ImportMode::Mnemonic;
         self.generated_wallet = None;
         self.verify_positions.clear();
         self.name_input
             .update(cx, |input, cx| input.set_value("导入钱包", window, cx));
         self.import_mnemonic_input
+            .update(cx, |input, cx| input.set_value("", window, cx));
+        self.import_wif_input
             .update(cx, |input, cx| input.set_value("", window, cx));
         self.note_input
             .update(cx, |input, cx| input.set_value("", window, cx));
@@ -641,6 +644,34 @@ impl BtccWalletListPage {
             .update(cx, |input, cx| input.set_value(wallet.note, window, cx));
         self.status = None;
         self.error = None;
+        cx.notify();
+    }
+
+    fn set_import_mode(
+        &mut self,
+        mode: ImportMode,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.import_mode == mode {
+            return;
+        }
+
+        self.import_mode = mode;
+        self.error = None;
+        self.status = None;
+
+        match mode {
+            ImportMode::Mnemonic => {
+                self.import_wif_input
+                    .update(cx, |input, cx| input.set_value("", window, cx));
+            }
+            ImportMode::Wif => {
+                self.import_mnemonic_input
+                    .update(cx, |input, cx| input.set_value("", window, cx));
+            }
+        }
+
         cx.notify();
     }
 
@@ -692,13 +723,13 @@ impl BtccWalletListPage {
             let actual = self.verify_inputs[index].read(cx).text().to_string();
             let actual = actual.trim();
             if actual.is_empty() {
-                self.error = Some(format!("请输入第 {} 个单词", position + 1));
+                self.error = Some(format!("Please enter word #{}", position + 1));
                 self.status = None;
                 cx.notify();
                 return;
             }
             if !actual.eq_ignore_ascii_case(expected) {
-                self.error = Some(format!("第 {} 个单词不正确，请重新核对", position + 1));
+                self.error = Some(format!("Word #{} is incorrect", position + 1));
                 self.status = None;
                 cx.notify();
                 return;
@@ -709,13 +740,13 @@ impl BtccWalletListPage {
         let note = self.note_input.read(cx).text().to_string();
 
         if name.chars().count() > 7 {
-            self.error = Some("钱包名称不能超过 7 个汉字".to_string());
+            self.error = Some("Wallet name must be 7 characters or fewer".to_string());
             self.status = None;
             cx.notify();
             return;
         }
         if note.chars().count() > 50 {
-            self.error = Some("备注不能超过 50 个汉字".to_string());
+            self.error = Some("Note must be 50 characters or fewer".to_string());
             self.status = None;
             cx.notify();
             return;
@@ -723,13 +754,13 @@ impl BtccWalletListPage {
 
         let password = self.action_password_input.read(cx).text().to_string();
         if password.is_empty() {
-            self.error = Some("请输入钱包初始密码".to_string());
+            self.error = Some("Please enter the wallet password".to_string());
             self.status = None;
             cx.notify();
             return;
         }
         if password.chars().count() < 6 {
-            self.error = Some("密码长度不足，至少需要 6 位字符".to_string());
+            self.error = Some("Password must be at least 6 characters".to_string());
             self.status = None;
             cx.notify();
             return;
@@ -756,7 +787,7 @@ impl BtccWalletListPage {
                 self.action_password_input
                     .update(cx, |input, cx| input.set_value("", window, cx));
                 self.status =
-                    Some("验证通过，钱包已加密保存，数据库不会保存明文助记词或私钥".to_string());
+                    Some("Verification passed. Wallet saved in encrypted form.".to_string());
                 self.error = None;
             }
             Err(err) => {
@@ -771,67 +802,17 @@ impl BtccWalletListPage {
         self.error = None;
         self.status = None;
 
-        let text = self.import_mnemonic_input.read(cx).text().to_string();
-        let words: Vec<&str> = text.split_whitespace().collect();
-        if words.len() < 12 {
-            self.error = Some(format!(
-                "助记词不足，需要 12 个单词，当前 {} 个",
-                words.len()
-            ));
-            self.status = None;
-            cx.notify();
-            return;
-        }
-        if words.len() > 12 {
-            self.error = Some(format!(
-                "助记词过多，只支持 12 个单词，当前 {} 个",
-                words.len()
-            ));
-            self.status = None;
-            cx.notify();
-            return;
-        }
-
-        for (index, word) in words.iter().enumerate() {
-            let normalized = word.trim().to_ascii_lowercase();
-            if normalized.is_empty() || !normalized.chars().all(|ch| ch.is_ascii_alphabetic()) {
-                self.error = Some(format!("第 {} 个助记词不正确，必须是英文单词", index + 1));
-                self.status = None;
-                cx.notify();
-                return;
-            }
-        }
-
-        let mnemonic = words.join(" ");
-
-        if Mnemonic::parse_in_normalized(Language::English, &mnemonic).is_err() {
-            self.error = Some("助记词不正确，请输入 12 个有效的英文助记词".to_string());
-            self.status = None;
-            cx.notify();
-            return;
-        }
-
-        let wallet = match wallet_from_mnemonic(&mnemonic) {
-            Ok(wallet) => wallet,
-            Err(err) => {
-                self.error = Some(format!("助记词无效: {err}"));
-                self.status = None;
-                cx.notify();
-                return;
-            }
-        };
-
         let name = self.name_input.read(cx).text().to_string();
         let note = self.note_input.read(cx).text().to_string();
 
         if name.chars().count() > 7 {
-            self.error = Some("钱包名称不能超过 7 个汉字".to_string());
+            self.error = Some("Wallet name must be 7 characters or fewer".to_string());
             self.status = None;
             cx.notify();
             return;
         }
         if note.chars().count() > 50 {
-            self.error = Some("备注不能超过 50 个汉字".to_string());
+            self.error = Some("Note must be 50 characters or fewer".to_string());
             self.status = None;
             cx.notify();
             return;
@@ -839,23 +820,87 @@ impl BtccWalletListPage {
 
         let password = self.action_password_input.read(cx).text().to_string();
         if password.is_empty() {
-            self.error = Some("请输入钱包初始密码".to_string());
+            self.error = Some("Please enter the wallet password".to_string());
             self.status = None;
             cx.notify();
             return;
         }
         if password.chars().count() < 6 {
-            self.error = Some("密码长度不足，至少需要 6 位字符".to_string());
+            self.error = Some("Password must be at least 6 characters".to_string());
             self.status = None;
             cx.notify();
             return;
         }
 
+        let (wallet, source_type) = match self.import_mode {
+            ImportMode::Mnemonic => {
+                let text = self.import_mnemonic_input.read(cx).text().to_string();
+                let words: Vec<&str> = text.split_whitespace().collect();
+                if words.len() != 12 && words.len() != 24 {
+                    self.error = Some(format!(
+                        "Mnemonic must contain 12 or 24 words. Current count: {}",
+                        words.len()
+                    ));
+                    self.status = None;
+                    cx.notify();
+                    return;
+                }
+
+                for (index, word) in words.iter().enumerate() {
+                    let normalized = word.trim().to_ascii_lowercase();
+                    if normalized.is_empty() || !normalized.chars().all(|ch| ch.is_ascii_alphabetic()) {
+                        self.error = Some(format!("Mnemonic word #{} is invalid", index + 1));
+                        self.status = None;
+                        cx.notify();
+                        return;
+                    }
+                }
+
+                let mnemonic = words.join(" ");
+                if Mnemonic::parse_in_normalized(Language::English, &mnemonic).is_err() {
+                    self.error = Some("Mnemonic is invalid".to_string());
+                    self.status = None;
+                    cx.notify();
+                    return;
+                }
+
+                match wallet_from_mnemonic(&mnemonic) {
+                    Ok(wallet) => (wallet, "mnemonic".to_string()),
+                    Err(err) => {
+                        self.error = Some(format!("助记词导入失败: {err}"));
+                        self.status = None;
+                        cx.notify();
+                        return;
+                    }
+                }
+            }
+            ImportMode::Wif => {
+                let wif = self.import_wif_input.read(cx).text().to_string();
+                let wif = wif.trim().to_string();
+                if wif.is_empty() {
+                    self.error = Some("Please enter a WIF private key".to_string());
+                    self.status = None;
+                    cx.notify();
+                    return;
+                }
+
+                match wallet_from_private_key_wif(&wif) {
+                    Ok(wallet) => (wallet, "wif".to_string()),
+                    Err(err) => {
+                        self.error = Some(format!("WIF 私钥无效: {err}"));
+                        self.error = Some(format!("WIF private key is invalid: {err}"));
+                        cx.notify();
+                        return;
+                    }
+                }
+            }
+        };
+
         let result = create_encrypted_btcc_wallet_blocking(
             name,
             wallet.address.clone(),
             wallet.derivation_path.clone(),
-            "mnemonic".to_string(),
+            source_type,
             wallet.public_key.to_string(),
             note,
             wallet.mnemonic.clone(),
@@ -871,13 +916,15 @@ impl BtccWalletListPage {
                     .update(cx, |input, cx| input.set_value("", window, cx));
                 self.import_mnemonic_input
                     .update(cx, |input, cx| input.set_value("", window, cx));
-                self.status = Some("钱包导入成功".to_string());
+                self.import_wif_input
+                    .update(cx, |input, cx| input.set_value("", window, cx));
+                self.status = Some("Wallet import succeeded".to_string());
                 self.error = None;
             }
             Err(err) => {
                 let message = err.to_string();
                 self.error = Some(if message.contains("password is incorrect") {
-                    "密码输入错误".to_string()
+                    "Wallet password is incorrect".to_string()
                 } else {
                     message
                 });
@@ -889,7 +936,7 @@ impl BtccWalletListPage {
 
     fn save_existing_wallet(&mut self, _: &mut Window, cx: &mut Context<Self>) {
         let Some(id) = self.selected_id else {
-            self.error = Some("请先选择一个钱包".to_string());
+            self.error = Some("Please select a wallet first".to_string());
             self.status = None;
             cx.notify();
             return;
@@ -899,13 +946,13 @@ impl BtccWalletListPage {
         let note = self.note_input.read(cx).text().to_string();
 
         if name.chars().count() > 7 {
-            self.error = Some("钱包名称不能超过 7 个汉字".to_string());
+            self.error = Some("Wallet name must be 7 characters or fewer".to_string());
             self.status = None;
             cx.notify();
             return;
         }
         if note.chars().count() > 50 {
-            self.error = Some("备注不能超过 50 个汉字".to_string());
+            self.error = Some("Note must be 50 characters or fewer".to_string());
             self.status = None;
             cx.notify();
             return;
@@ -916,7 +963,7 @@ impl BtccWalletListPage {
                 self.reload(cx);
                 self.editor_open = false;
                 self.selected_id = None;
-                self.status = Some("钱包已保存".to_string());
+                self.status = None;
                 self.error = None;
             }
             Err(err) => {
@@ -982,12 +1029,8 @@ impl BtccWalletListPage {
                         this.receive_qr_path = None;
                         this.receive_qr_error = None;
                         this.emit_active_count(cx);
-                        this.status = Some(match result {
-                            DeleteBtccWalletResult::HardDeleted => "空钱包已彻底删除".to_string(),
-                            DeleteBtccWalletResult::SoftDeleted => {
-                                "有余额钱包已从列表隐藏".to_string()
-                            }
-                        });
+                        let _ = result;
+                        this.status = None;
                         this.error = None;
                     }
                     Err(err) => {
@@ -1032,7 +1075,7 @@ impl BtccWalletListPage {
         let base_url = DEFAULT_BTCC_EXPLORER_API.trim_end_matches("/api/v1");
         let url = format!("{base_url}/address/{address}");
         cx.open_url(&url);
-        self.status = Some("宸叉墦寮€閽卞寘鍘嗗彶椤甸潰".to_string());
+        self.status = None;
         self.error = None;
         cx.notify();
     }
@@ -1051,7 +1094,7 @@ impl BtccWalletListPage {
             .map(|w| w.name.clone());
         let (receive_qr_path, receive_qr_error) = match Self::write_receive_qr_png(&address) {
             Ok(path) => (Some(path), None),
-            Err(err) => (None, Some(format!("二维码生成失败: {err}"))),
+            Err(err) => (None, Some(format!("Failed to generate QR code: {err}"))),
         };
         self.receive_wallet_address = Some(address);
         self.receive_wallet_name = wallet_name;
@@ -1174,12 +1217,6 @@ impl Render for BtccWalletListPage {
                     .and(self.vault_unlocked.then_some(()))
                     .and(self.delete_confirm_wallet_id.map(|_| ())),
                 |el, _| el.child(self.render_delete_confirm(cx).unwrap()),
-            )
-            .when_some(
-                self.status
-                    .clone()
-                    .filter(|_| self.vault_initialized && self.vault_unlocked),
-                |el, status| el.child(floating_status(status, cx)),
             )
     }
 }

@@ -1,5 +1,6 @@
 pub mod explorer;
 pub mod keys;
+pub mod mint;
 pub mod pbe;
 pub mod vanity_gpu;
 pub mod tx;
@@ -16,6 +17,14 @@ pub use keys::{
     generate_vanity_btcc_wallet_with_stats_cancellable_mode,
     generate_vanity_btcc_wallet_with_stats_cancellable_mode_progress, wallet_from_mnemonic,
     wallet_from_private_key_wif,
+};
+pub use mint::{
+    BtccMintWalletContext, BtccStampBatchMintBroadcastResult, BtccStampBatchMintRequest,
+    BtccStampBroadcastItem, BtccStampMintRequest, BtccStampMintResult,
+    broadcast_cc_stamp_batch_mint_transaction_blocking,
+    broadcast_cc_stamp_mint_transaction_blocking, build_cc_stamp_mint_transaction_blocking,
+    build_cc_stamp_mint_transaction_with_wallet, format_cc_stamp, mint_wallet_by_address_prefix,
+    mint_wallet_by_address_prefix_blocking,
 };
 pub use tx::{
     BtccBatchRecipient, BtccBatchSendRequest, BtccSendRequest, BtccSignedTransaction, btcc_to_sats,

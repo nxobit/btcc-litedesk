@@ -358,27 +358,6 @@ pub(super) fn inline_status(text: String, cx: &mut Context<BtccWalletListPage>) 
         .into_any_element()
 }
 
-pub(super) fn floating_status(text: String, cx: &mut Context<BtccWalletListPage>) -> AnyElement {
-    let app_theme = cx.theme().clone();
-
-    div()
-        .absolute()
-        .top(px(20.))
-        .right(px(20.))
-        .max_w(px(360.))
-        .px_3()
-        .py_2()
-        .rounded(px(8.))
-        .border_1()
-        .border_color(app_theme.primary.opacity(0.22))
-        .bg(app_theme.primary.opacity(0.10))
-        .text_size(px(12.))
-        .text_color(app_theme.primary)
-        .shadow_md()
-        .child(text)
-        .into_any_element()
-}
-
 pub(super) fn format_sats_plain(sats: i64) -> String {
     if sats == 0 {
         "--".to_string()
