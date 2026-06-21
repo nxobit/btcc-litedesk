@@ -7308,7 +7308,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 [[package]]
 name = "vgen"
 version = "0.3.0"
-source = "git+https://github.com/nxobit/vgen.git?rev=38a6d23ecf9eb374363e188fd2e89e524b6b1221#38a6d23ecf9eb374363e188fd2e89e524b6b1221"
+source = "git+https://github.com/nxobit/vgen.git?rev=fdc979ff298815418752f16e257a72d5d73f3711#fdc979ff298815418752f16e257a72d5d73f3711"
 dependencies = [
  "anyhow",
  "bitcoin",
