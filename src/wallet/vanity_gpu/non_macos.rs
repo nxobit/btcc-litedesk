@@ -7,29 +7,12 @@ use std::sync::{
 
 use vgen::{GpuBackend, GpuRunner, gpu::BtccVanityPatternConfig};
 
-use crate::wallet::keys::VanityPattern;
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum VanityGpuBackend {
-    #[default]
-    Auto,
-    Vulkan,
-    Metal,
-    Dx12,
-    Gl,
-}
+use crate::wallet::{
+    keys::VanityPattern,
+    vanity_gpu::{VanityGpuBackend, VanityGpuMatch, VanityGpuProgressCallback},
+};
 
 impl VanityGpuBackend {
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Auto => "Auto",
-            Self::Vulkan => "Vulkan",
-            Self::Metal => "Metal",
-            Self::Dx12 => "DX12",
-            Self::Gl => "OpenGL",
-        }
-    }
-
     fn to_vgen_backend(self) -> GpuBackend {
         match self {
             Self::Auto => GpuBackend::Auto,
@@ -39,22 +22,6 @@ impl VanityGpuBackend {
             Self::Gl => GpuBackend::Gl,
         }
     }
-}
-
-impl std::fmt::Display for VanityGpuBackend {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.label())
-    }
-}
-
-pub const DEFAULT_GPU_BATCH_SIZE: u32 = 512 * 1024;
-pub type VanityGpuProgressCallback = Arc<dyn Fn(u64) + Send + Sync>;
-
-#[derive(Debug, Clone)]
-pub struct VanityGpuMatch {
-    pub address: String,
-    pub wif: String,
-    pub operations: u64,
 }
 
 pub fn run_vgen_for_btcc_pattern(
@@ -67,13 +34,6 @@ pub fn run_vgen_for_btcc_pattern(
     if matches!(backend, VanityGpuBackend::Dx12) {
         return Err(anyhow!(
             "当前进程内 GPU 版本暂不支持 DX12 后端，请改用 Auto 或 Vulkan。"
-        ));
-    }
-
-    #[cfg(target_os = "macos")]
-    if !matches!(backend, VanityGpuBackend::Auto | VanityGpuBackend::Metal) {
-        return Err(anyhow!(
-            "macOS GPU 模式当前仅支持 Auto 或 Metal 后端。"
         ));
     }
 
