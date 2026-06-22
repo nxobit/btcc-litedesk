@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 use anyhow::{Context, Result, anyhow};
 use bech32::Hrp;
 use bitcoin::{
@@ -23,10 +22,6 @@ use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
-=======
-use anyhow::{Result, anyhow};
-use std::sync::{Arc, atomic::AtomicBool};
->>>>>>> bce574fe2092c4e09e6b0918c184ffe42e33ccb0
 
 use crate::wallet::{
     keys::VanityPattern,
