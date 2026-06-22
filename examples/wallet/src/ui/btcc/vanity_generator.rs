@@ -462,7 +462,7 @@ impl VanityGeneratorPage {
                             this.loading = false;
                             this.started_at = None;
                             this.status = None;
-                            this.error = Some(err.to_string());
+                            this.error = Some(format_error_chain(&err));
                             cx.notify();
                         });
                         return;
@@ -1437,6 +1437,18 @@ fn inline_error(text: String, cx: &mut Context<VanityGeneratorPage>) -> AnyEleme
         .text_color(cx.theme().danger)
         .child(text)
         .into_any_element()
+}
+
+fn format_error_chain(err: &anyhow::Error) -> String {
+    let mut lines = Vec::new();
+    for (index, cause) in err.chain().enumerate() {
+        if index == 0 {
+            lines.push(cause.to_string());
+        } else {
+            lines.push(format!("Caused by: {cause}"));
+        }
+    }
+    lines.join("\n")
 }
 
 fn inline_status(text: String, cx: &mut Context<VanityGeneratorPage>) -> AnyElement {
