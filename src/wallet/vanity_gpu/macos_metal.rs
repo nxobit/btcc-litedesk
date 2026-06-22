@@ -677,16 +677,4 @@ mod tests {
         bech32::segwit::encode(*hrp, bech32::segwit::VERSION_0, hash.as_byte_array())
             .context("encode BTCC address failed")
     }
-=======
-pub fn run_vgen_for_btcc_pattern(
-    _pattern: &VanityPattern,
-    _backend: VanityGpuBackend,
-    _batch_size: u32,
-    _stop_requested: Arc<AtomicBool>,
-    _progress_cb: Option<VanityGpuProgressCallback>,
-) -> Result<Option<VanityGpuMatch>> {
-    Err(anyhow!(
-        "macOS GPU 后端正在切换为原生 Metal 实现，当前版本暂不可用。"
-    ))
->>>>>>> bce574fe2092c4e09e6b0918c184ffe42e33ccb0
 }
