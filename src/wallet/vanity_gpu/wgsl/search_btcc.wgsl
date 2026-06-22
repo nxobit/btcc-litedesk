@@ -94,7 +94,7 @@ fn build_btcc_address_chars(hash160: array<u32, 5>) -> array<u32, 42> {
 fn match_btcc_address(chars: array<u32, 42>) -> bool {
     if (config.match_mode == 1u || config.match_mode == 3u) {
         for (var i = 0u; i < config.prefix_len; i = i + 1u) {
-            if (chars[i] != pattern_char(config.prefix_chars, i)) {
+            if (chars[3u + i] != pattern_char(config.prefix_chars, i)) {
                 return false;
             }
         }
@@ -102,7 +102,7 @@ fn match_btcc_address(chars: array<u32, 42>) -> bool {
 
     if (config.match_mode == 2u || config.match_mode == 3u) {
         for (var i = 0u; i < config.suffix_len; i = i + 1u) {
-            let addr_idx = 42u - config.suffix_len + i;
+            let addr_idx = 35u - config.suffix_len + i;
             if (chars[addr_idx] != pattern_char(config.suffix_chars, i)) {
                 return false;
             }
