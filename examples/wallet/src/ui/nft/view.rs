@@ -1,4 +1,4 @@
-use crate::ui::nft::render::*;
+﻿use crate::ui::nft::render::*;
 use crate::ui::palette;
 use gpui::{
     px, relative, App, Bounds, ContentMask, Context, Element, ElementId, Entity,
@@ -313,23 +313,14 @@ impl Render for NftGalleryPage {
                                     .child(
                                         h_flex()
                                             .items_center()
-                                            .gap_4()
-                                            .child(
-                                                div()
-                                                    .text_size(px(11.0))
-                                                    .text_color(palette::muted(&app_theme))
-                                                    .child("在下方列表区域滚动鼠标滚轮即可翻页，只做 NFT 查询不做归属查询，稀有度算法在帮助菜单里有说明，仅供娱乐参考不做市价价值评估。"),
-                                            ),
-                                    )
-                                    .child(
-                                        h_flex()
-                                            .items_center()
                                             .gap_2()
                                             .child(
                                                 div()
                                                     .text_size(px(11.0))
                                                     .text_color(palette::muted(&app_theme))
-                                                    .child(format!("捐赠 NFT 地址：{NFT_DONATE_ADDRESS}")),
+                                                    .child(format!(
+                                                        "在下方列表区域滚动鼠标滚轮即可翻页，只做 NFT 查询不做归属查询，稀有度算法在帮助菜单里有说明，仅供娱乐参考不做市价价值评估。捐赠 NFT 地址：{NFT_DONATE_ADDRESS}"
+                                                    )),
                                             )
                                             .child(
                                                 Button::new("copy-nft-donate-address")
@@ -359,7 +350,7 @@ impl Render for NftGalleryPage {
                                         cx,
                                     ))
                                     .child(render_overview_chip(
-                                        "显示数量",
+                                        "鏄剧ず鏁伴噺",
                                         count_label,
                                         app_theme.success.opacity(0.08),
                                         app_theme.success.opacity(0.92),
@@ -562,7 +553,7 @@ fn render_page_chip(
             div()
                 .text_size(px(11.0))
                 .text_color(accent.opacity(0.72))
-                .child("页码"),
+                .child("椤电爜"),
         )
         .child(
             div()
@@ -643,7 +634,7 @@ fn render_sort_card(
                     div()
                         .text_size(px(11.0))
                         .text_color(palette::muted(app_theme))
-                        .child("排序"),
+                        .child("鎺掑簭"),
                 ),
         )
         .child(
@@ -699,7 +690,7 @@ fn render_sort_card(
                                 .text_size(px(10.0))
                                 .text_color(palette::muted_soft(app_theme))
                                 .font_semibold()
-                                .child("稀有"),
+                                .child("编号"),
                         )
                         .child(
                             div().flex_1().child(
@@ -867,7 +858,7 @@ fn render_rarity_filter_card_v2(
                                         .child(
                                             rarity_filter_action_button(
                                                 3,
-                                                format!("全部 {}", TOTAL_SUPPLY_U32),
+                                                format!("鍏ㄩ儴 {}", TOTAL_SUPPLY_U32),
                                                 selected_rarity.is_none(),
                                                 None,
                                                 cx,
