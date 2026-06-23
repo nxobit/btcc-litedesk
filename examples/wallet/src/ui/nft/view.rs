@@ -350,7 +350,7 @@ impl Render for NftGalleryPage {
                                         cx,
                                     ))
                                     .child(render_overview_chip(
-                                        "鏄剧ず鏁伴噺",
+                                        "显示数量",
                                         count_label,
                                         app_theme.success.opacity(0.08),
                                         app_theme.success.opacity(0.92),
@@ -382,6 +382,7 @@ impl Render for NftGalleryPage {
                                     .child(
                                         h_flex()
                                             .w_full()
+                                            .h(px(28.0))
                                             .items_center()
                                             .gap_2()
                                             .child(
@@ -389,19 +390,19 @@ impl Render for NftGalleryPage {
                                                     .w_full()
                                                     .child(
                                                         Input::new(&self.query_input)
+                                                            .w_full()
                                                             .small()
                                                             .prefix(Icon::new(IconName::Search).small()),
                                                     ),
                                             ),
                                     )
-                                    .when_some(self.query_error.clone(), |el, error| {
-                                        el.child(
-                                            div()
-                                                .text_size(px(11.0))
-                                                .text_color(app_theme.danger)
-                                                .child(error),
-                                        )
-                                    }),
+                                    .child(
+                                        div()
+                                            .h(px(14.0))
+                                            .text_size(px(11.0))
+                                            .text_color(app_theme.danger)
+                                            .child(self.query_error.clone().unwrap_or_default()),
+                                    ),
                             ),
                     ),
             )
@@ -553,7 +554,7 @@ fn render_page_chip(
             div()
                 .text_size(px(11.0))
                 .text_color(accent.opacity(0.72))
-                .child("椤电爜"),
+                .child("页码"),
         )
         .child(
             div()
@@ -634,7 +635,7 @@ fn render_sort_card(
                     div()
                         .text_size(px(11.0))
                         .text_color(palette::muted(app_theme))
-                        .child("鎺掑簭"),
+                        .child("排序"),
                 ),
         )
         .child(
@@ -858,7 +859,7 @@ fn render_rarity_filter_card_v2(
                                         .child(
                                             rarity_filter_action_button(
                                                 3,
-                                                format!("鍏ㄩ儴 {}", TOTAL_SUPPLY_U32),
+                                                format!("全部 {}", TOTAL_SUPPLY_U32),
                                                 selected_rarity.is_none(),
                                                 None,
                                                 cx,
