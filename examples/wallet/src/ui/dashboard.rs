@@ -8,11 +8,12 @@ use crate::ui::{
         wallet_list::{BtccWalletListEvent, BtccWalletListPage},
         wallet_manager::{WalletGeneratorPage as WalletManagerPage, WalletManagerEvent},
     },
+    nft::NftGalleryPage,
     palette,
     title_bar::{
         DesktopTitleBar, DesktopTitleBarEvent, OpenBatchSend, OpenBtccWalletCreate,
-        OpenBtccWalletImport, OpenBtccWalletList, OpenDonate, OpenStampMint, OpenVanityGenerator,
-        OpenWalletGenerator, OpenWalletManager,
+        OpenBtccWalletImport, OpenBtccWalletList, OpenDonate, OpenNftGallery, OpenStampMint,
+        OpenVanityGenerator, OpenWalletGenerator, OpenWalletManager,
     },
 };
 use gpui::*;
@@ -27,6 +28,7 @@ pub struct Dashboard {
     batch_send_page: Option<Entity<BatchSendPage>>,
     stamp_mint_page: Option<Entity<StampMintPage>>,
     donate_page: Option<Entity<DonateWindow>>,
+    nft_gallery_page: Option<Entity<NftGalleryPage>>,
     active_page: ActivePage,
     _subscriptions: Vec<Subscription>,
 }
@@ -40,6 +42,7 @@ enum ActivePage {
     BatchSend,
     StampMint,
     Donate,
+    NftGallery,
 }
 
 impl Dashboard {
@@ -71,6 +74,7 @@ impl Dashboard {
             batch_send_page: None,
             stamp_mint_page: None,
             donate_page: None,
+            nft_gallery_page: None,
             active_page: ActivePage::BtccWalletList,
             _subscriptions,
         }
@@ -101,6 +105,7 @@ impl Dashboard {
                 self.open_vanity_generator_page(window, cx)
             }
             DesktopTitleBarEvent::OpenDonate => self.open_donate_page(window, cx),
+            DesktopTitleBarEvent::OpenNftGallery => self.open_nft_gallery_page(window, cx),
         }
     }
 
@@ -194,6 +199,15 @@ impl Dashboard {
         self.open_stamp_mint_page(window, cx);
     }
 
+    fn on_open_nft_gallery(
+        &mut self,
+        _: &OpenNftGallery,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_nft_gallery_page(window, cx);
+    }
+
     fn on_btcc_wallet_list_event(
         &mut self,
         _: &Entity<BtccWalletListPage>,
@@ -263,6 +277,14 @@ impl Dashboard {
             self.stamp_mint_page = Some(cx.new(|cx| StampMintPage::new(window, cx)));
         }
         self.active_page = ActivePage::StampMint;
+        cx.notify();
+    }
+
+    fn open_nft_gallery_page(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.nft_gallery_page.is_none() {
+            self.nft_gallery_page = Some(cx.new(|cx| NftGalleryPage::new(window, cx)));
+        }
+        self.active_page = ActivePage::NftGallery;
         cx.notify();
     }
 
@@ -344,6 +366,18 @@ impl Dashboard {
                         .into_any_element()
                 })
                 .unwrap_or_else(|| div().into_any_element()),
+            ActivePage::NftGallery => self
+                .nft_gallery_page
+                .as_ref()
+                .map(|page| {
+                    div()
+                        .flex_1()
+                        .size_full()
+                        .p_6()
+                        .child(page.clone())
+                        .into_any_element()
+                })
+                .unwrap_or_else(|| div().into_any_element()),
         }
     }
 }
@@ -367,6 +401,7 @@ impl Render for Dashboard {
             .on_action(cx.listener(Self::on_open_donate))
             .on_action(cx.listener(Self::on_open_batch_send))
             .on_action(cx.listener(Self::on_open_stamp_mint))
+            .on_action(cx.listener(Self::on_open_nft_gallery))
             .child(self.title_bar.clone())
             .child(
                 h_flex()

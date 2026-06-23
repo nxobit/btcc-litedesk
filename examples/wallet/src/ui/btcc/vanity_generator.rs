@@ -3,7 +3,7 @@ use crate::ui::palette;
 use btcc_litedesk::{
     db::btcc_wallet::create_encrypted_btcc_wallet_blocking,
     wallet::{
-        BitcoinWallet, VanityComputeMode as WalletVanityComputeMode, VanityGenerationResult,
+        VanityComputeMode as WalletVanityComputeMode, VanityGenerationResult,
         VanityGpuBackend, VanityGpuConfig, VanityPattern,
         generate_vanity_btcc_wallet_with_stats_cancellable_mode_progress,
     },
@@ -163,7 +163,11 @@ impl VanityGeneratorPage {
     }
 
     fn set_engine_mode(&mut self, mode: VanityEngineMode, cx: &mut Context<Self>) {
-        self.engine_mode = mode;
+        self.engine_mode = if platform_supports_gpu_engine() {
+            mode
+        } else {
+            VanityEngineMode::Cpu
+        };
         if self.engine_mode == VanityEngineMode::Gpu
             && !supports_gpu_backend_on_current_platform(self.gpu_backend)
         {
@@ -267,7 +271,11 @@ impl VanityGeneratorPage {
         self.elapsed_secs = 0;
         self.generation_seq = self.generation_seq.saturating_add(1);
         self.stop_requested = Arc::new(AtomicBool::new(false));
-        self.status = Some(format!("开始生成，目标数量 {}", target_count));
+        self.status = Some(if engine_mode == VanityEngineMode::Gpu {
+            format!("GPU / vgen 初始化中，目标数量 {}，后端 {}", target_count, gpu_backend.label())
+        } else {
+            format!("开始生成，目标数量 {}", target_count)
+        });
         self.error = None;
 
         let generation_seq = self.generation_seq;
@@ -365,15 +373,16 @@ impl VanityGeneratorPage {
 
                                 if save_to_wallet_list {
                                     let wallet_name = build_wallet_name(mode, &prefix, &suffix, index);
+                                    let source = if result.wallet.derivation_path == "gpu-generated" {
+                                        "wif".to_string()
+                                    } else {
+                                        "generated".to_string()
+                                    };
                                     create_encrypted_btcc_wallet_blocking(
                                         wallet_name,
                                         result.wallet.address.clone(),
                                         result.wallet.derivation_path.clone(),
-                                        if engine_mode == VanityEngineMode::Gpu {
-                                            "wif".to_string()
-                                        } else {
-                                            "generated".to_string()
-                                        },
+                                        source,
                                         result.wallet.public_key.to_string(),
                                         note,
                                         result.wallet.mnemonic.clone(),
@@ -419,23 +428,33 @@ impl VanityGeneratorPage {
                                     .batch_summary
                                     .total_attempts
                                     .saturating_add(result.attempts);
+                                let execution_note = result.fallback_note.clone();
+                                let engine_label = result.engine_label;
                                 this.result = Some(result);
                                 this.elapsed_secs = this
                                     .started_at
                                     .map(|started_at| started_at.elapsed().as_secs())
                                     .unwrap_or(this.elapsed_secs);
                                 this.status = Some(if this.save_to_wallet_list {
-                                    format!(
+                                    let base = format!(
                                         "生成中，已保存 {} / {}",
                                         this.batch_summary.saved_count,
                                         this.batch_summary.target_count
-                                    )
+                                    );
+                                    match execution_note {
+                                        Some(note) => format!("{note} 当前执行：{engine_label}；{base}"),
+                                        None => format!("当前执行：{engine_label}；{base}"),
+                                    }
                                 } else {
-                                    format!(
+                                    let base = format!(
                                         "生成中，已完成 {} / {}",
                                         this.batch_summary.processed_count,
                                         this.batch_summary.target_count
-                                    )
+                                    );
+                                    match execution_note {
+                                        Some(note) => format!("{note} 当前执行：{engine_label}；{base}"),
+                                        None => format!("当前执行：{engine_label}；{base}"),
+                                    }
                                 });
                                 this.error = None;
                                 cx.notify();
@@ -584,6 +603,10 @@ impl VanityGeneratorPage {
     }
 
     fn apply_recommended_engine_mode(&mut self, cx: &mut Context<Self>) {
+        if !platform_supports_gpu_engine() {
+            self.engine_mode = VanityEngineMode::Cpu;
+            return;
+        }
         let rule_len = self.current_rule_length(cx);
         self.engine_mode = if rule_len >= 4 {
             VanityEngineMode::Gpu
@@ -682,7 +705,11 @@ impl VanityGeneratorPage {
                 div()
                     .text_size(px(11.))
                     .text_color(palette::muted(&app_theme))
-                    .child("按前缀或后缀规则批量生成 BTCC 靓号；GPU 模式依赖 vgen，并按 WIF 保存结果。"),
+                    .child(if platform_supports_gpu_engine() {
+                        "按前缀或后缀规则批量生成 BTCC 靓号；Windows 保持使用 vgen / GPU 路径，并按 WIF 保存结果。"
+                    } else {
+                        "按前缀或后缀规则批量生成 BTCC 靓号；macOS 当前先关闭 GPU 生成，只保留 CPU 生成。"
+                    }),
             )
             .child(
                 h_flex()
@@ -964,7 +991,7 @@ impl VanityGeneratorPage {
                             .overflow_y_scrollbar()
                             .child(match &self.result {
                             Some(result) => {
-                                render_wallet_result(result.wallet.clone(), result.attempts, cx)
+                                render_wallet_result(result.clone(), cx)
                             }
                             None => div()
                                 .text_size(px(12.))
@@ -1043,6 +1070,7 @@ fn render_engine_picker(
     cx: &mut Context<VanityGeneratorPage>,
 ) -> AnyElement {
     let app_theme = cx.theme().clone();
+    let supports_gpu_engine = platform_supports_gpu_engine();
 
     v_flex()
         .gap_2()
@@ -1053,22 +1081,34 @@ fn render_engine_picker(
                 .child("生成引擎"),
         )
         .child(
-            h_flex()
-                .gap_2()
-                .child(engine_mode_button(engine_mode, VanityEngineMode::Gpu, cx))
-                .child(engine_mode_button(engine_mode, VanityEngineMode::Cpu, cx)),
+            if supports_gpu_engine {
+                h_flex()
+                    .gap_2()
+                    .child(engine_mode_button(engine_mode, VanityEngineMode::Cpu, cx))
+                    .child(engine_mode_button(engine_mode, VanityEngineMode::Gpu, cx))
+                    .into_any_element()
+            } else {
+                div()
+                    .text_size(px(12.))
+                    .font_semibold()
+                    .text_color(palette::text_strong(&app_theme))
+                    .child("当前引擎：CPU")
+                    .into_any_element()
+            },
         )
         .child(
             div()
                 .text_size(px(10.))
                 .text_color(palette::muted_soft(&app_theme))
-                .child(if engine_mode == VanityEngineMode::Gpu {
+                .child(if !supports_gpu_engine {
+                    "macOS 当前先关闭 GPU 生成，保留 CPU 生成。"
+                } else if engine_mode == VanityEngineMode::Gpu {
                     "GPU 结果仅包含地址和 WIF。"
                 } else {
                     "CPU 使用内置多线程搜索。"
                 }),
         )
-        .when(engine_mode == VanityEngineMode::Gpu, |panel| {
+        .when(supports_gpu_engine && engine_mode == VanityEngineMode::Gpu, |panel| {
             panel
                 .child(
                     div()
@@ -1110,7 +1150,7 @@ fn engine_mode_button(
     })
     .label(match mode {
         VanityEngineMode::Cpu => "CPU",
-        VanityEngineMode::Gpu => "GPU",
+        VanityEngineMode::Gpu => "GPU / vgen",
     })
     .when(active, |button| button.primary())
     .when(!active, |button| button.outline())
@@ -1126,6 +1166,18 @@ fn engine_mode_button(
     .into_any_element()
 }
 
+fn platform_supports_gpu_engine() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        false
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
 fn gpu_backend_button(
     active_backend: VanityGpuBackend,
     backend: VanityGpuBackend,
@@ -1137,9 +1189,6 @@ fn gpu_backend_button(
     Button::new(match backend {
         VanityGpuBackend::Auto => "btcc-vanity-gpu-auto",
         VanityGpuBackend::Vulkan => "btcc-vanity-gpu-vulkan",
-        VanityGpuBackend::Metal => "btcc-vanity-gpu-metal",
-        VanityGpuBackend::Dx12 => "btcc-vanity-gpu-dx12",
-        VanityGpuBackend::Gl => "btcc-vanity-gpu-gl",
     })
     .label(backend.label())
     .when(active, |button| button.primary())
@@ -1171,41 +1220,36 @@ fn default_gpu_backend_for_platform() -> VanityGpuBackend {
 fn supports_gpu_backend_on_current_platform(backend: VanityGpuBackend) -> bool {
     #[cfg(target_os = "macos")]
     {
-        matches!(backend, VanityGpuBackend::Auto | VanityGpuBackend::Metal)
+        matches!(backend, VanityGpuBackend::Auto)
     }
 
     #[cfg(not(target_os = "macos"))]
     {
-        !matches!(backend, VanityGpuBackend::Dx12)
+        matches!(backend, VanityGpuBackend::Auto | VanityGpuBackend::Vulkan)
     }
 }
 
 fn available_gpu_backends() -> Vec<VanityGpuBackend> {
     #[cfg(target_os = "macos")]
     {
-        vec![VanityGpuBackend::Auto, VanityGpuBackend::Metal]
+        vec![VanityGpuBackend::Auto]
     }
 
     #[cfg(not(target_os = "macos"))]
     {
-        vec![
-            VanityGpuBackend::Auto,
-            VanityGpuBackend::Vulkan,
-            VanityGpuBackend::Metal,
-            VanityGpuBackend::Gl,
-        ]
+        vec![VanityGpuBackend::Auto, VanityGpuBackend::Vulkan]
     }
 }
 
 fn gpu_backend_hint_text() -> &'static str {
     #[cfg(target_os = "macos")]
     {
-        "macOS 当前只开放 Auto 和 Metal，避免 GPU 后端初始化直接闪退。"
+        "macOS 当前已关闭 GPU 靓号生成。"
     }
 
     #[cfg(not(target_os = "macos"))]
     {
-        "默认建议 Auto；驱动异常时再手动切后端。"
+        "Windows 默认建议 Auto；若 Auto 不稳定，可手动切到 Vulkan。"
     }
 }
 
@@ -1281,17 +1325,36 @@ fn field(
 }
 
 fn render_wallet_result(
-    wallet: BitcoinWallet,
-    attempts: u64,
+    result: VanityGenerationResult,
     cx: &mut Context<VanityGeneratorPage>,
 ) -> AnyElement {
     let app_theme = cx.theme().clone();
+    let wallet = result.wallet;
+    let attempts = result.attempts;
+    let engine_label = result.engine_label;
+    let fallback_note = result.fallback_note.clone();
     let mnemonic_value = wallet.mnemonic.clone();
     let has_mnemonic = !mnemonic_value.trim().is_empty();
 
     v_flex()
         .w_full()
         .gap_2()
+        .when_some(fallback_note, |el, note| {
+            el.child(
+                div()
+                    .w_full()
+                    .p_3()
+                    .rounded(px(8.))
+                    .border_1()
+                    .border_color(app_theme.warning.opacity(0.22))
+                    .bg(app_theme.warning.opacity(0.06))
+                    .text_size(px(11.))
+                    .line_height(px(18.))
+                    .text_color(palette::text_strong(&app_theme))
+                    .child(note),
+            )
+        })
+        .child(compact_kv("执行引擎", engine_label.to_string(), false, cx))
         .child(compact_kv("本次尝试", attempts.to_string(), false, cx))
         .child(compact_kv("BTCC 地址", wallet.address, true, cx))
         .child(compact_kv("派生路径", wallet.derivation_path, true, cx))

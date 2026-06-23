@@ -860,12 +860,9 @@ dependencies = [
  "bech32",
  "bip39",
  "bitcoin",
- "bytemuck",
  "cbc",
  "cipher",
- "metal 0.29.0",
  "naga 28.0.0",
- "objc",
  "pbkdf2",
  "rand 0.8.6",
  "reqwest",
@@ -7311,7 +7308,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 [[package]]
 name = "vgen"
 version = "0.3.0"
-source = "git+https://github.com/nxobit/vgen.git?rev=fdc979ff298815418752f16e257a72d5d73f3711#fdc979ff298815418752f16e257a72d5d73f3711"
+source = "git+https://github.com/nxobit/vgen.git?rev=d8f6aa7c66be6b222aa62eae862be58130b00316#d8f6aa7c66be6b222aa62eae862be58130b00316"
 dependencies = [
  "anyhow",
  "bitcoin",
@@ -7378,6 +7375,7 @@ name = "wallet"
 version = "0.1.3"
 dependencies = [
  "anyhow",
+ "base64",
  "bip39",
  "btcc_litedesk",
  "gpui",
@@ -7385,8 +7383,10 @@ dependencies = [
  "gpui-component-assets",
  "image",
  "qrcode",
+ "rand 0.8.6",
  "serde",
  "serde_json",
+ "sha2",
  "winresource",
 ]
 

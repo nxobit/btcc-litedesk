@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use bitcoin::{Network, PrivateKey, secp256k1::SecretKey};
 use std::sync::{
     Arc,
@@ -17,9 +17,6 @@ impl VanityGpuBackend {
         match self {
             Self::Auto => GpuBackend::Auto,
             Self::Vulkan => GpuBackend::Vulkan,
-            Self::Metal => GpuBackend::Metal,
-            Self::Dx12 => GpuBackend::Dx12,
-            Self::Gl => GpuBackend::Gl,
         }
     }
 }
@@ -31,12 +28,6 @@ pub fn run_vgen_for_btcc_pattern(
     stop_requested: Arc<AtomicBool>,
     progress_cb: Option<VanityGpuProgressCallback>,
 ) -> Result<Option<VanityGpuMatch>> {
-    if matches!(backend, VanityGpuBackend::Dx12) {
-        return Err(anyhow!(
-            "当前进程内 GPU 版本暂不支持 DX12 后端，请改用 Auto 或 Vulkan。"
-        ));
-    }
-
     if stop_requested.load(Ordering::Relaxed) {
         return Ok(None);
     }

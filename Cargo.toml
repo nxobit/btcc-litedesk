@@ -20,7 +20,6 @@ base64 = "0.22"
 bech32 = "0.11"
 bip39 = "2"
 bitcoin = "0.32"
-bytemuck = { version = "1.19", features = ["derive"] }
 cbc = "0.1"
 cipher = "0.4"
 pbkdf2 = "0.12"
@@ -30,12 +29,8 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
 sha2 = "0.10"
 tokio = { version = "1.42", features = ["rt", "sync"] }
-vgen = { git = "https://github.com/nxobit/vgen.git", rev = "fdc979ff298815418752f16e257a72d5d73f3711" }
-naga = { git = "https://github.com/nxobit/naga.git", rev = "461a550e063d1e063cc361f388e0e3e32fe39451", features = ["termcolor", "wgsl-in", "msl-out"] }
-
-[target.'cfg(target_os = "macos")'.dependencies]
-metal = "0.29"
-objc = "0.2"
+vgen = { git = "https://github.com/nxobit/vgen.git", rev = "d8f6aa7c66be6b222aa62eae862be58130b00316" }
+naga = { git = "https://github.com/nxobit/naga.git", rev = "461a550e063d1e063cc361f388e0e3e32fe39451", features = ["termcolor"] }
 
 [patch.crates-io]
 naga = { git = "https://github.com/nxobit/naga.git", rev = "461a550e063d1e063cc361f388e0e3e32fe39451" }

@@ -10,6 +10,7 @@ icons = ["assets/app.ico"]
 
 [dependencies]
 anyhow = "1.0"
+base64 = "0.22"
 bip39 = "2"
 btcc_litedesk = { path = "../.." }
 gpui = { version = "0.2.2", default-features = false, features = ["runtime_shaders"] }
@@ -17,8 +18,10 @@ gpui-component = { git = "https://github.com/longbridge/gpui-component", tag = "
 gpui-component-assets = { git = "https://github.com/longbridge/gpui-component", tag = "v0.5.1" }
 image = "0.25"
 qrcode = "0.14"
+rand = { version = "0.8", features = ["std_rng"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+sha2 = "0.10"
 
 [build-dependencies]
 winresource = "0.1"

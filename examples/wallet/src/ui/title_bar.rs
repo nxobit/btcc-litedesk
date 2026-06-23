@@ -3,10 +3,11 @@ use crate::ui::btcc::wallet_list::get_global_vault_password;
 use crate::ui::palette;
 use gpui::{actions, prelude::FluentBuilder, *};
 use gpui_component::{
-    ActiveTheme, Sizable, TitleBar,
+    ActiveTheme, IconName, Sizable, TitleBar,
     button::{Button, ButtonVariants},
     menu::{DropdownMenu, PopupMenuItem},
 };
+use std::{fs, path::Path, path::PathBuf};
 
 actions!(
     btcc_litedesk,
@@ -19,7 +20,8 @@ actions!(
         OpenWalletManager,
         OpenBatchSend,
         OpenStampMint,
-        OpenDonate
+        OpenDonate,
+        OpenNftGallery
     ]
 );
 
@@ -30,6 +32,7 @@ pub struct DesktopTitleBar {
 pub enum DesktopTitleBarEvent {
     OpenVanityGenerator,
     OpenDonate,
+    OpenNftGallery,
 }
 
 impl EventEmitter<DesktopTitleBarEvent> for DesktopTitleBar {}
@@ -44,6 +47,23 @@ impl DesktopTitleBar {
     pub fn set_active_wallet_count(&mut self, count: usize, cx: &mut Context<Self>) {
         self.active_wallet_count = count;
         cx.notify();
+    }
+
+    fn ensure_rarity_help_doc() -> Option<PathBuf> {
+        let doc_path = std::env::temp_dir()
+            .join("btcc-litedesk")
+            .join("help")
+            .join("nft_rarity_help.md");
+        let content = include_str!("../../docs/nft_rarity_help.md");
+        if let Some(parent) = doc_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        fs::write(&doc_path, content).ok()?;
+        Some(doc_path)
+    }
+
+    fn path_to_file_url(path: &Path) -> String {
+        format!("file:///{}", path.to_string_lossy().replace('\\', "/"))
     }
 }
 
@@ -61,6 +81,16 @@ impl Render for DesktopTitleBar {
                     .px_1()
                     .text_size(px(11.))
                     .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .child(
+                        Button::new("github-link-menu")
+                            .ghost()
+                            .xsmall()
+                            .compact()
+                            .icon(IconName::GitHub)
+                            .on_click(|_, _, cx| {
+                                cx.open_url("https://github.com/nxobit/btcc-litedesk");
+                            }),
+                    )
                     .child(
                         Button::new("theme-menu")
                             .label("主题")
@@ -174,6 +204,15 @@ impl Render for DesktopTitleBar {
                             })),
                     )
                     .child(
+                        Button::new("nft-menu")
+                            .label("NFT查询")
+                            .ghost()
+                            .xsmall()
+                            .on_click(cx.listener(|_, _, _, cx| {
+                                cx.emit(DesktopTitleBarEvent::OpenNftGallery);
+                            })),
+                    )
+                    .child(
                         Button::new("help-menu")
                             .label("帮助")
                             .ghost()
@@ -181,10 +220,12 @@ impl Render for DesktopTitleBar {
                             .dropdown_menu(|menu, _, _| {
                                 menu.item(
                                     PopupMenuItem::element(|_, _| {
-                                        div().text_size(px(11.)).child("X (Twitter)")
+                                        div().text_size(px(11.)).child("稀有度说明")
                                     })
                                     .on_click(|_, _, cx| {
-                                        cx.open_url("https://x.com/even366");
+                                        if let Some(path) = Self::ensure_rarity_help_doc() {
+                                            cx.open_url(&Self::path_to_file_url(&path));
+                                        }
                                     }),
                                 )
                                 .item(
@@ -192,7 +233,7 @@ impl Render for DesktopTitleBar {
                                         div().text_size(px(11.)).child("GitHub")
                                     })
                                     .on_click(|_, _, cx| {
-                                        cx.open_url("https://github.com/Even521/btcc-litedesk");
+                                        cx.open_url("https://github.com/nxobit/btcc-litedesk");
                                     }),
                                 )
                                 .min_w(px(120.))
@@ -235,4 +276,3 @@ impl Render for DesktopTitleBar {
             )
     }
 }
-

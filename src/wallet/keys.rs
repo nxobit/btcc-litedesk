@@ -14,7 +14,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     mpsc,
 };
-use std::thread;
+use std::{panic::{self, AssertUnwindSafe}, thread};
 
 use crate::wallet::vanity_gpu::{
     DEFAULT_GPU_BATCH_SIZE, VanityGpuBackend, VanityGpuProgressCallback,
@@ -49,6 +49,8 @@ pub enum VanityPattern {
 pub struct VanityGenerationResult {
     pub wallet: BtccWallet,
     pub attempts: u64,
+    pub engine_label: &'static str,
+    pub fallback_note: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -99,6 +101,8 @@ pub fn generate_vanity_btcc_wallet_with_stats(
         return Ok(VanityGenerationResult {
             wallet,
             attempts: 1,
+            engine_label: "CPU",
+            fallback_note: None,
         });
     }
     if thread_count == 0 {
@@ -147,7 +151,12 @@ pub fn generate_vanity_btcc_wallet_with_stats(
         let _ = handle.join();
     }
 
-    Ok(VanityGenerationResult { wallet, attempts })
+    Ok(VanityGenerationResult {
+        wallet,
+        attempts,
+        engine_label: "CPU",
+        fallback_note: None,
+    })
 }
 
 pub fn generate_vanity_btcc_wallet_with_stats_cancellable(
@@ -185,18 +194,39 @@ pub fn generate_vanity_btcc_wallet_with_stats_cancellable_mode_progress(
     compute_mode: VanityComputeMode,
     progress_cb: Option<VanityGpuProgressCallback>,
 ) -> anyhow::Result<Option<VanityGenerationResult>> {
+    let cpu_fallback_pattern = pattern.clone();
+    let cpu_fallback_stop_requested = Arc::clone(&stop_requested);
+
     match compute_mode {
         VanityComputeMode::Cpu => generate_vanity_btcc_wallet_with_stats_cancellable_cpu(
             pattern,
             thread_count,
             stop_requested,
         ),
-        VanityComputeMode::Gpu(config) => generate_vanity_btcc_wallet_with_stats_cancellable_gpu(
-            pattern,
-            stop_requested,
-            config,
-            progress_cb,
-        ),
+        VanityComputeMode::Gpu(config) => {
+            match generate_vanity_btcc_wallet_with_stats_cancellable_gpu(
+                pattern,
+                stop_requested,
+                config,
+                progress_cb,
+            ) {
+                Ok(result) => Ok(result),
+                Err(gpu_err) => generate_vanity_btcc_wallet_with_stats_cancellable_cpu(
+                    cpu_fallback_pattern,
+                    thread_count.max(1),
+                    cpu_fallback_stop_requested,
+                )
+                .map(|opt| {
+                    opt.map(|mut result| {
+                        result.fallback_note = Some(format!(
+                            "GPU / vgen 不可用，已自动回退到 CPU。原因：{}",
+                            gpu_err
+                        ));
+                        result
+                    })
+                }),
+            }
+        }
     }
 }
 
@@ -211,6 +241,8 @@ fn generate_vanity_btcc_wallet_with_stats_cancellable_cpu(
         return Ok(Some(VanityGenerationResult {
             wallet,
             attempts: 1,
+            engine_label: "CPU",
+            fallback_note: None,
         }));
     }
     if thread_count == 0 {
@@ -262,8 +294,14 @@ fn generate_vanity_btcc_wallet_with_stats_cancellable_cpu(
         let _ = handle.join();
     }
 
-    channel_result
-        .map(|opt| opt.map(|(wallet, attempts)| VanityGenerationResult { wallet, attempts }))
+    channel_result.map(|opt| {
+        opt.map(|(wallet, attempts)| VanityGenerationResult {
+            wallet,
+            attempts,
+            engine_label: "CPU",
+            fallback_note: None,
+        })
+    })
 }
 
 fn generate_vanity_btcc_wallet_with_stats_cancellable_gpu(
@@ -272,40 +310,56 @@ fn generate_vanity_btcc_wallet_with_stats_cancellable_gpu(
     gpu_config: VanityGpuConfig,
     progress_cb: Option<VanityGpuProgressCallback>,
 ) -> anyhow::Result<Option<VanityGenerationResult>> {
-    let pattern = normalize_vanity_pattern(pattern)?;
-    if is_empty_vanity_pattern(&pattern) {
-        let wallet = generate_btcc_wallet()?;
-        return Ok(Some(VanityGenerationResult {
+    panic::catch_unwind(AssertUnwindSafe(|| {
+        let pattern = normalize_vanity_pattern(pattern)?;
+        if is_empty_vanity_pattern(&pattern) {
+            let wallet = generate_btcc_wallet()?;
+            return Ok(Some(VanityGenerationResult {
+                wallet,
+                attempts: 1,
+                engine_label: "GPU / vgen",
+                fallback_note: None,
+            }));
+        }
+
+        let Some(found) = run_vgen_for_btcc_pattern(
+            &pattern,
+            gpu_config.backend,
+            gpu_config.batch_size,
+            stop_requested,
+            progress_cb,
+        )?
+        else {
+            return Ok(None);
+        };
+
+        let mut wallet = wallet_from_private_key_wif(&found.wif)
+            .context("restore BTCC wallet from GPU-generated WIF failed")?;
+        wallet.derivation_path = "gpu-generated".to_string();
+
+        if !vanity_match(&wallet.address, &pattern) {
+            return Err(anyhow!(
+                "GPU generator returned a WIF that does not match the requested BTCC vanity pattern"
+            ));
+        }
+
+        Ok(Some(VanityGenerationResult {
             wallet,
-            attempts: 1,
-        }));
-    }
-
-    let Some(found) = run_vgen_for_btcc_pattern(
-        &pattern,
-        gpu_config.backend,
-        gpu_config.batch_size,
-        stop_requested,
-        progress_cb,
-    )?
-    else {
-        return Ok(None);
-    };
-
-    let mut wallet = wallet_from_private_key_wif(&found.wif)
-        .context("restore BTCC wallet from GPU-generated WIF failed")?;
-    wallet.derivation_path = "gpu-generated".to_string();
-
-    if !vanity_match(&wallet.address, &pattern) {
-        return Err(anyhow!(
-            "GPU generator returned a WIF that does not match the requested BTCC vanity pattern"
-        ));
-    }
-
-    Ok(Some(VanityGenerationResult {
-        wallet,
-        attempts: found.operations,
+            attempts: found.operations,
+            engine_label: "GPU / vgen",
+            fallback_note: None,
+        }))
     }))
+    .map_err(|payload| {
+        let panic_message = if let Some(message) = payload.downcast_ref::<&str>() {
+            (*message).to_string()
+        } else if let Some(message) = payload.downcast_ref::<String>() {
+            message.clone()
+        } else {
+            "unknown GPU panic payload".to_string()
+        };
+        anyhow!("GPU vanity generation panicked: {panic_message}")
+    })?
 }
 
 fn normalize_vanity_pattern(pattern: VanityPattern) -> anyhow::Result<VanityPattern> {
@@ -573,6 +627,7 @@ mod tests {
         assert!(increment_secret_key_bytes(max, 1).is_none());
     }
 
+    #[cfg(not(target_os = "macos"))]
     #[test]
     #[ignore = "manual benchmark for local CPU/GPU comparison"]
     fn compares_cpu_gpu_vanity_generation_time() {
@@ -618,6 +673,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(target_os = "macos"))]
     #[test]
     #[ignore = "manual benchmark for local CPU/GPU suffix comparison"]
     fn compares_cpu_gpu_suffix_lengths_2_to_5() {
@@ -663,6 +719,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(target_os = "macos"))]
     #[test]
     #[ignore = "manual GPU smoke test"]
     fn generates_single_gpu_wallet_smoke() {

@@ -5,9 +5,6 @@ pub enum VanityGpuBackend {
     #[default]
     Auto,
     Vulkan,
-    Metal,
-    Dx12,
-    Gl,
 }
 
 impl VanityGpuBackend {
@@ -15,9 +12,6 @@ impl VanityGpuBackend {
         match self {
             Self::Auto => "Auto",
             Self::Vulkan => "Vulkan",
-            Self::Metal => "Metal",
-            Self::Dx12 => "DX12",
-            Self::Gl => "OpenGL",
         }
     }
 }
@@ -39,11 +33,11 @@ pub struct VanityGpuMatch {
 }
 
 #[cfg(target_os = "macos")]
-mod macos_metal;
+mod macos_disabled;
 #[cfg(not(target_os = "macos"))]
 mod non_macos;
 
 #[cfg(target_os = "macos")]
-pub use macos_metal::run_vgen_for_btcc_pattern;
+pub use macos_disabled::run_vgen_for_btcc_pattern;
 #[cfg(not(target_os = "macos"))]
 pub use non_macos::run_vgen_for_btcc_pattern;
