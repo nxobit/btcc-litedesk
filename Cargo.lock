@@ -851,7 +851,7 @@ dependencies = [
 
 [[package]]
 name = "btcc_litedesk"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "aes",
  "anyhow",
@@ -7372,7 +7372,7 @@ dependencies = [
 
 [[package]]
 name = "wallet"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "base64",
